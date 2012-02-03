@@ -3,8 +3,8 @@ require "spec_helper"
 describe Mongoid::Relations::AutoSave do
 
   before(:all) do
-    Person.autosave(Person.relations["drugs"].merge!(:autosave => true))
-    Person.autosave(Person.relations["account"].merge!(:autosave => true))
+    Person.autosave(Person.relations["drugs"].merge!(autosave: true))
+    Person.autosave(Person.relations["account"].merge!(autosave: true))
   end
 
   after(:all) do
@@ -20,7 +20,7 @@ describe Mongoid::Relations::AutoSave do
     context "when the option is not provided" do
 
       let(:game) do
-        Game.new(:name => "Tekken")
+        Game.new(name: "Tekken")
       end
 
       before do
@@ -44,7 +44,7 @@ describe Mongoid::Relations::AutoSave do
       context "when the relation is a references many" do
 
         let(:drug) do
-          Drug.new(:name => "Percocet")
+          Drug.new(name: "Percocet")
         end
 
         context "when saving a new parent document" do
@@ -76,7 +76,7 @@ describe Mongoid::Relations::AutoSave do
       context "when the relation is a references one" do
 
         let(:account) do
-          Account.new(:name => "Testing")
+          Account.new(name: "Testing")
         end
 
         context "when saving a new parent document" do
@@ -108,11 +108,11 @@ describe Mongoid::Relations::AutoSave do
       context "when the relation is a referenced in" do
 
         let(:ghost) do
-          Ghost.new(:name => "Slimer")
+          Ghost.new(name: "Slimer")
         end
 
         let(:movie) do
-          Movie.new(:title => "Ghostbusters")
+          Movie.new(title: "Ghostbusters")
         end
 
         context "when saving a new parent document" do

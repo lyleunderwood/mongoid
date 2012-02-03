@@ -39,17 +39,31 @@ module Mongoid # :nodoc:
         # @example Concat with other documents.
         #   person.addresses.concat([ address_one, address_two ])
         #
-        # @param [ Array<Document> ] documents The docs to add.
+        # @param [ Array<Document> ] docs The docs to add.
         #
         # @return [ Array<Document> ] The documents.
         #
         # @since 2.4.0
-        def concat(documents)
-          atomically(:$pushAll) do
-            documents.each do |doc|
-              next unless doc
-              append(doc)
-              doc.save if persistable?
+        def concat(docs)
+          # @todo: Durran: Test all conditions, then refactor.
+          docs.each do |doc|
+            next unless doc
+            append(doc)
+            if persistable?
+              doc.valid?(:create)
+              doc.run_before_callbacks(:save)
+              doc.run_before_callbacks(:create)
+            end
+          end
+          if persistable?
+            collection.find(base.atomic_selector).update(
+              "$pushAll" => { docs.first.atomic_path => docs.map(&:as_document) }
+            )
+            docs.each do |doc|
+              doc.new_record = false
+              doc.run_after_callbacks(:create)
+              doc.run_after_callbacks(:save)
+              doc.post_persist
             end
           end
         end
@@ -174,7 +188,7 @@ module Mongoid # :nodoc:
               if _assigning? && !doc.paranoid?
                 base.add_atomic_pull(doc)
               else
-                doc.delete(:suppress => true)
+                doc.delete(suppress: true)
               end
               unbind_one(doc)
             end
@@ -299,6 +313,7 @@ module Mongoid # :nodoc:
         #
         # @since 2.0.0.rc.1
         def substitute(replacement)
+          # @todo: Durran: Test all conditions and refactor.
           tap do |proxy|
             if replacement.blank?
               if _assigning? && !proxy.empty?
@@ -306,21 +321,35 @@ module Mongoid # :nodoc:
               end
               proxy.clear
             else
-              atomically(:$set) do
-                base.delayed_atomic_sets.clear
-                if replacement.first.is_a?(Hash)
-                  replacement = Many.builder(base, metadata, replacement).build
+              base.delayed_atomic_sets.clear
+              if replacement.first.is_a?(Hash)
+                replacement = Many.builder(base, metadata, replacement).build
+              end
+              docs = replacement.compact
+              proxy.target = docs
+              self._unscoped = docs.dup
+              if _assigning?
+                base.delayed_atomic_sets[metadata.name.to_s] = proxy.as_document
+              end
+              proxy.target.each_with_index do |doc, index|
+                integrate(doc)
+                doc._index = index
+                if base.persisted? && !_assigning?
+                  doc.valid?(:create)
+                  doc.run_before_callbacks(:save)
+                  doc.run_before_callbacks(:create)
                 end
-                docs = replacement.compact
-                proxy.target = docs
-                self._unscoped = docs.dup
-                if _assigning?
-                  base.delayed_atomic_sets[metadata.name.to_s] = proxy.as_document
-                end
-                proxy.target.each_with_index do |doc, index|
-                  integrate(doc)
-                  doc._index = index
-                  doc.save if base.persisted? && !_assigning?
+                # doc.save if base.persisted? && !_assigning?
+              end
+              if base.persisted? && !_assigning?
+                collection.find(base.atomic_selector).update(
+                  "$set" => { docs.first.atomic_path => proxy.as_document }
+                )
+                proxy.target.each do |doc|
+                  doc.new_record = false
+                  doc.run_after_callbacks(:create)
+                  doc.run_after_callbacks(:save)
+                  doc.post_persist
                 end
               end
             end
@@ -494,7 +523,7 @@ module Mongoid # :nodoc:
             criteria.each do |doc|
               target.delete_one(doc)
               _unscoped.delete_one(doc)
-              doc.send(method, :suppress => true) unless _assigning?
+              doc.send(method, suppress: true) unless _assigning?
               unbind_one(doc)
             end
             reindex

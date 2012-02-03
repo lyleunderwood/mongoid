@@ -1,8 +1,6 @@
 # encoding: utf-8
 require "mongoid/relations/embedded/atomic/operation"
 require "mongoid/relations/embedded/atomic/pull"
-require "mongoid/relations/embedded/atomic/push_all"
-require "mongoid/relations/embedded/atomic/set"
 require "mongoid/relations/embedded/atomic/unset"
 
 module Mongoid #:nodoc:
@@ -14,8 +12,6 @@ module Mongoid #:nodoc:
 
         MODIFIERS = {
           :$pull => Pull,
-          :$pushAll => PushAll,
-          :$set => Set,
           :$unset => Unset
         }
 
